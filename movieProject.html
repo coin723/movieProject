@@ -1,0 +1,630 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Document</title>
+  <script  type="text/javascript" src="d3.min.js"></script>
+  <script type='text/javascript' src="jquery-2.1.1.min.js"></script>
+  <link rel="stylesheet" href="movieProject.css"/>
+</head>
+<body>
+  <div id="container_proj_title">
+    <p class="proj_title" id="main_title">한국영화 역대 박스오피스 TOP100</p>
+    <p class="proj_title" id="sub_title">영화 - 배우 관계도</p>
+
+    <p class="guide_ment" id="ment_click">영화 혹은 배우 이름을 클릭하세요</p>
+    <p class="guide_ment" id="ment_refresh">새로고침하시면 배우를 재배치 합니다</p>
+  </div>
+
+
+<script>
+
+  var w = 1200;
+  var h = 50*30;
+  var margin = {
+    top: 40,
+    bottom: 90,
+    left: 60,
+    right: 20
+  };
+  var width = w - margin.left - margin.right;
+  var height = h - margin.top - margin.bottom;
+
+  d3.csv("movieProject.csv",function(data){
+//  d3.csv("movie_data_test.csv",function(data){
+    function colores_google(n) {
+      var colores_g = ["#3366cc", "#dc3912", "#ff9900", "#109618", "#990099", "#0099c6", "#dd4477", "#66aa00", "#b82e2e", "#316395", "#994499", "#22aa99", "#aaaa11", "#6633cc", "#e67300", "#8b0707", "#651067", "#329262", "#5574a6", "#3b3eac"];
+      return colores_g[n % colores_g.length];
+    }
+
+    function get_x_coord(i){
+      var x_coord;
+
+      if(i<50){
+        x_coord = 200;
+      }else{
+        x_coord = 1000;
+      }
+      return x_coord;
+    }
+
+    function get_y_coord(i){
+      var y_coord;
+      if(i<50){
+        y_coord = i*30 + 20;
+      }else{
+        y_coord = (i-50)*30 + 20;
+      }
+      return y_coord;
+    }
+
+    var nodes_movie = [];
+    var nodes_actor = [];
+    var uniqueMovieData = [];
+    var uniqueActorData = [];
+
+//      get unique movies
+    var uniqueMovies = d3.map([]);
+    var uniqueActors = d3.map([]);
+
+    data.forEach(function(d, i){
+      uniqueMovies.set(d.movie_name, d);
+      uniqueActors.set(d.actor_code, d);
+    });
+
+    uniqueMovies.forEach(function(d, i){
+      uniqueMovieData.push(uniqueMovies.get(d));
+    });
+
+    uniqueActors.forEach(function(d, i){
+      uniqueActorData.push(uniqueActors.get(d));
+    });
+
+    //  set movie nodes coordinate
+    uniqueMovieData.forEach(function(unique_move, i){
+      var actors_in_movie = data.filter(function(d){
+        return unique_move.movie_code === d.movie_code;
+      });
+
+      var actor_codes = [];
+
+      actors_in_movie.forEach(function(d, i){
+        actor_codes.push(d.actor_code);
+      });
+
+      var node_obj = {
+        movie_rank : unique_move.movie_rank,
+        movie_code : unique_move.movie_code,
+        movie_name : unique_move.movie_name,
+        movie_open_dt : unique_move.movie_open_dt,
+        movie_audi : unique_move.movie_audi,
+        x: get_x_coord(i),
+        y: get_y_coord(i),
+        actors: actor_codes,
+        color: colores_google(i)
+      };
+      nodes_movie.push(node_obj);
+    });
+
+    //  set actor nodes coordinate
+    var xmax = 950;
+    var xmin = 250;
+    var ymax = h-50;
+    var ymin = 20;
+
+    uniqueActorData.forEach(function(unique_actor, i){
+
+      var movies_actor_attended = data.filter(function(d){
+        return unique_actor.actor_code === d.actor_code;
+      });
+
+      var movie_codes = [];
+
+      movies_actor_attended.forEach(function(d, i){
+        movie_codes.push(d.movie_code);
+      });
+
+      unique_actor.x = Math.random() * (xmax - xmin) + xmin;
+      unique_actor.y = Math.random() * (ymax - ymin) + ymin;
+
+      var node_obj = {
+        actor_code : unique_actor.actor_code,
+        actor_name : unique_actor.actor_name,
+        x: unique_actor.x,
+        y: unique_actor.y,
+        movies: movie_codes
+      };
+      nodes_actor.push(node_obj);
+    });
+
+    //draw svg
+    var svg = d3.select("body")
+      .data(data)
+      .append("svg")
+      .attr("width", w)
+      .attr("height", h)
+      .attr("margin-top", margin.top)
+      .attr("id", "svg_container");
+
+//make link data
+    var links = [];
+
+// nodes_movie를 기준으로 data를 filter하여 연결된 배우 code를 찾는다.
+    nodes_movie.forEach(function(node_movie,i){
+      var x1, y1, x2, y2, movie_color;
+
+      x1 = nodes_movie[i].x;
+      y1 = nodes_movie[i].y;
+      movie_color = nodes_movie[i].color;
+
+      var nodes_movie_group = data.filter(function(d){
+        return node_movie.movie_code === d.movie_code;
+      });
+
+      nodes_movie_group.forEach(function(node_movie_group, i){
+        var container_node_actor = nodes_actor.filter(function(node_actor){
+            return node_movie_group.actor_code === node_actor.actor_code;
+        });
+        x2 = container_node_actor[0].x;
+        y2 = container_node_actor[0].y;
+
+        var link_obj = {
+          x1: x1,
+          y1: y1,
+          x2: x2,
+          y2: y2,
+          movie_code: node_movie_group.movie_code,
+          actor_code: container_node_actor[0].actor_code,
+          color:movie_color
+        };
+
+        links.push(link_obj);
+      });
+    });
+
+
+//draw link lines
+    var link = svg.selectAll(".link")
+      .data(links)
+      .enter()
+      .append("line")
+      .attr("class", function(d){
+        var line_class = "movie_code_"+d.movie_code+" actor_code_"+d.actor_code;
+        return line_class;
+      })
+      .classed("link", true)
+      .attr("x1", function(d){return d.x1;})
+      .attr("y1", function(d){return d.y1;})
+      .attr("x2", function(d){return d.x2;})
+      .attr("y2", function(d){return d.y2;})
+      .attr("stroke", function(d,i) { return d.color; } );
+
+
+    var movie_g = svg.selectAll(".movie_g")
+      .data(nodes_movie)
+      .enter()
+      .append("g")
+      .attr("class", function(d){
+        var actor_codes_class = "";
+        for(var i=0; i < d.actors.length; i++){
+          actor_codes_class += " actor_code_"+d.actors[i];
+        }
+        return "movie_code_"+d.movie_code + actor_codes_class;
+      })
+      .classed("movie_g", true)
+      .attr("data-movie-code", function(d){
+        return d.movie_code;
+      })
+      .attr("data-status", "off");
+
+//draw movie dots
+    movie_g.append("circle")
+      .classed("movie_dot", true)
+      .attr("cx", function(d, i){
+        return d.x;
+      })
+      .attr("cy", function(d, i){
+        return d.y;
+      })
+      .attr("r", 4)
+      .attr("fill", function(d,i) { return d.color; } );
+
+//write movie name
+    movie_g.append("text")
+      .classed("movie_name", true)
+      .attr("x", function(d, i){
+        return d.x;
+      })
+      .attr("y", function(d, i){
+        return d.y;
+      })
+      .attr("dy", 4)
+      .attr("dx", function(d,i){
+        if(i<50){
+          return -36;
+        }else{
+          return 36;
+        }
+      })
+      .style("text-anchor", function(d,i){
+        if(i<50){
+          return "end";
+        }else{
+          return "start";
+        }
+      })
+      .text(function(d){
+        return d.movie_name;
+      });
+
+//write movie rank
+    movie_g.append("text")
+      .classed("movie_rank", true)
+      .attr("x", function(d, i){
+        return d.x;
+      })
+      .attr("y", function(d, i){
+        return d.y;
+      })
+      .attr("dy", 4)
+      .attr("dx", function(d,i){
+        if(i<50){
+          return -18;
+        }else{
+          return 18;
+        }
+      })
+      .style("text-anchor", "middle")
+      .text(function(d, i){
+        return d.movie_rank + "위";
+      });
+
+    var tooltip = {
+      width: 200,
+      height: 100
+    };
+
+
+//    movie tooltip - start
+var movie_tooltip_group = svg.selectAll(".movie_tooltip_group")
+    .data(nodes_movie)
+    .enter()
+    .append("g")
+    .attr("class", function(d){
+      var actor_codes_class = "";
+      for(var i=0; i < d.actors.length; i++){
+        actor_codes_class += " actor_code_"+d.actors[i];
+      }
+      return "movie_code_"+d.movie_code + actor_codes_class;
+    })
+    .classed("movie_tooltip_group", true);
+
+    //draw movie tooltip rect
+    movie_tooltip_group.append("rect")
+      .attr("id", function(d){
+        return "movie_tooltip_"+d.movie_code;
+      })
+      .classed("movie_tooltip", true)
+      .attr("x", function(d, i){
+        return d.x;
+      })
+      .attr("y", function(d, i){
+        return d.y;
+      })
+      .attr("width", tooltip.width)
+      .attr("height", tooltip.height)
+      .attr("transform", function(d,i){
+        if(i < 50){
+          if(i < 25){
+            return "translate(-" + tooltip.width + ",10)";
+          }else{
+            return "translate(-" +  tooltip.width + ",-" + (tooltip.height+15) + ")";
+          }
+        }else{
+          if(i < 75){
+            return "translate(0,10)";
+          }else{
+            return "translate(0,-" + (tooltip.height+15) + ")";
+          }
+        }
+      })
+      .attr("rx", 10)
+      .attr("ry", 10);
+
+    var pull_up = 22;
+    movie_tooltip_group.append("text")
+      .classed("tooltip_movie_name", true)
+      .attr("text-anchor", "middle")
+      .attr("x", function(d, i){
+        return d.x;
+      })
+      .attr("y", function(d, i){
+        return d.y;
+      })
+      .attr("transform", function(d,i){
+        if(i < 50){
+          if(i < 25){
+            return "translate(-" + tooltip.width/2 + ",0)";
+          }else{
+            return "translate(-" +  tooltip.width/2 + ",-" + (tooltip.height+pull_up) + ")";
+          }
+        }else{
+          if(i < 75){
+            return "translate(" + tooltip.width/2 + ",0)";
+          }else{
+            return "translate(" + tooltip.width/2 +",-" + (tooltip.height+pull_up) + ")";
+          }
+        }
+      })
+      .attr("dy", 40)
+      .text(function(d){
+        return d.movie_name;
+      });
+
+    movie_tooltip_group.append("text")
+        .classed("tooltip_movie_open_dt", true)
+        .attr("text-anchor", "middle")
+        .attr("x", function(d, i){
+          return d.x;
+        })
+        .attr("y", function(d, i){
+          return d.y;
+        })
+        .attr("transform", function(d,i){
+          if(i < 50){
+            if(i < 25){
+              return "translate(-" + tooltip.width/2 + ",0)";
+            }else{
+              return "translate(-" +  tooltip.width/2 + ",-" + (tooltip.height+pull_up) + ")";
+            }
+          }else{
+            if(i < 75){
+              return "translate(" + tooltip.width/2 + ",0)";
+            }else{
+              return "translate(" + tooltip.width/2 +",-" + (tooltip.height+pull_up) + ")";
+            }
+          }
+        })
+        .attr("dy", 65)
+        .text(function(d){
+          return d.movie_open_dt+"개봉";
+        });
+
+    movie_tooltip_group.append("text")
+      .classed("tooltip_movie_audi", true)
+      .attr("text-anchor", "middle")
+      .attr("x", function(d, i){
+        return d.x;
+      })
+      .attr("y", function(d, i){
+        return d.y;
+      })
+      .attr("transform", function(d,i){
+        if(i < 50){
+          if(i < 25){
+            return "translate(-" + tooltip.width/2 + ",0)";
+          }else{
+            return "translate(-" +  tooltip.width/2 + ",-" + (tooltip.height+pull_up) + ")";
+          }
+        }else{
+          if(i < 75){
+            return "translate(" + tooltip.width/2 + ",0)";
+          }else{
+            return "translate(" + tooltip.width/2 +",-" + (tooltip.height+pull_up) + ")";
+          }
+        }
+      })
+      .attr("dy", 95)
+      .text(function(d){
+        return d3.format(",")(d.movie_audi)+"명";
+      });
+//    movie tooltip - end
+
+//    actor node section - start
+
+    var actor_g = svg.selectAll(".actor_g")
+      .data(nodes_actor)
+      .enter()
+      .append("g")
+      .attr("class", function(d){
+        var movie_codes_class = "";
+        for(var i=0; i < d.movies.length; i++){
+          movie_codes_class += " movie_code_"+d.movies[i];
+        }
+        return "actor_code_" + d.actor_code + movie_codes_class;
+      })
+      .classed("actor_g", true)
+      .attr("data-status", "off")
+      .attr("data-actor-code", function(d){
+        return d.actor_code;
+      })
+      .attr("data-movie-codes", function(d){
+        var movie_codes = "[";
+        for(var i=0; i < d.movies.length; i++){
+          if(i == d.movies.length-1){
+            movie_codes += d.movies[i]+"]"
+          }else{
+            movie_codes += d.movies[i]+",";
+          }
+        }
+        return movie_codes;
+      });
+
+    actor_g.append("circle")
+      .attr("class", function(d){
+        var movie_codes_class = "";
+        for(var i=0; i < d.movies.length; i++){
+          movie_codes_class += " movie_code_"+d.movies[i];
+        }
+        return "actor_code_" + d.actor_code + movie_codes_class;
+      })
+      .classed("actor_dot",true)
+      .attr("data-actor-code", function(d){
+        return d.actor_code;
+      })
+      .attr("data-movie-codes", function(d){
+        var movie_codes = "[";
+        for(var i=0; i < d.movies.length; i++){
+          if(i == d.movies.length-1){
+            movie_codes += d.movies[i]+"]"
+          }else{
+            movie_codes += d.movies[i]+",";
+          }
+        }
+        return movie_codes;
+      })
+      .attr("r", function(d){ return 5; })
+      .attr("cx", function(d, i){
+        return d.x;
+      })
+      .attr("cy", function(d, i){
+        return d.y;
+      });
+
+    actor_g.append("text")
+      .classed("actor_name", true)
+      .attr("x", function(d){ return d.x; })
+      .attr("y", function(d){ return d.y + 18;})
+      .attr("text-anchor", "middle")
+      .text(function(d){ return d["actor_name"]; });
+  });
+  //    actor node section - end
+
+//  hover n click event function - start
+  function off_status_on_elements(){
+    var elements_to_off = $(".status_on");
+    for(var i=0; i < elements_to_off.length; i++){
+      elements_to_off[i].classList.remove("status_on");
+    }
+  }
+  function off_hover_on_elements(){
+    var elements_to_off = $(".hover_on");
+    for(var i=0; i < elements_to_off.length; i++){
+      elements_to_off[i].classList.remove("hover_on");
+    }
+  }
+
+  $(document.body).delegate('.movie_g', 'mouseover', function() {
+    var movie_code = $(this).data("movie-code");
+
+    var link_elements = $(".movie_code_"+ movie_code);
+
+//    console.log(link_elements);
+//    console.log(link_elements[0]);
+
+    for(var i=0; i<link_elements.length; i++){
+      link_elements[i].classList.add("hover_on");
+    };
+
+  });
+
+  $(document.body).delegate('.movie_g', 'mouseleave', function() {
+    off_hover_on_elements();
+  });
+
+  $(document.body).delegate('.movie_g', 'click', function() {
+
+    var status = $(this).data("status");
+    off_status_on_elements();
+
+    if(status == "on"){
+      $(this).data("status", "off");
+    }else if(status == "off"){
+      $(this).data("status", "on");
+      var movie_code = $(this).data("movie-code");
+      var link_elements = $(".movie_code_"+ movie_code);
+
+      for(var i=0; i<link_elements.length; i++){
+        link_elements[i].classList.remove("status_on");
+      };
+      for(var i=0; i<link_elements.length; i++){
+        link_elements[i].classList.add("status_on");
+      };
+    }
+
+  });
+
+
+  $(document.body).delegate('.actor_g', 'mouseover', function() {
+    var actor_code = $(this).data("actor-code");
+    var link_elements = $(".actor_code_"+actor_code);
+
+    for(var i=0; i<link_elements.length; i++){
+      link_elements[i].classList.add("hover_on");
+    }
+
+    var actor_movies = $(this).data("movie-codes");
+    for(var i=0; i < actor_movies.length; i++){
+      var movie_links = $(".movie_code_"+actor_movies[i]);
+      for(var j=0; j<movie_links.length; j++){
+
+        var class_list = movie_links[j].classList;
+        for(var k=0; k<class_list.length; k++){
+          if(class_list[k] == "actor_code_"+actor_code){
+            movie_links[j].classList.add("hover_on");
+            break;
+          }
+        }
+      }
+    }
+  });
+
+  $(document.body).delegate('.actor_g', 'mouseleave', function() {
+    off_hover_on_elements();
+  });
+
+  $(document.body).delegate('.actor_g', 'click', function() {
+    var status = $(this).data("status");
+    off_status_on_elements();
+
+    if(status == "on"){
+      $(this).data("status", "off");
+    }else if(status == "off"){
+      $(this).data("status", "on");
+      var actor_code = $(this).data("actor-code");
+      var actor_movies = $(this).data("movie-codes");
+      var link_elements = $(".actor_code_"+actor_code);
+
+      for(var i=0; i<link_elements.length; i++){
+        link_elements[i].classList.add("status_on");
+      }
+      for(var i=0; i < actor_movies.length; i++){
+        var movie_links = $(".movie_code_"+actor_movies[i]);
+        for(var j=0; j<movie_links.length; j++){
+
+          var class_list = movie_links[j].classList;
+          for(var k=0; k<class_list.length; k++){
+            if(class_list[k] == "actor_code_"+actor_code){
+              movie_links[j].classList.add("status_on");
+              break;
+            }
+          }
+        }
+      }
+    }
+  });
+
+  $(document.body).delegate('.movie_tooltip_group', 'mouseover', function() {
+
+    var tooltips = $(".movie_tooltip_group");
+
+    for(var i=0; i<tooltips.length; i++){
+      tooltips[i].classList.add("tooltip_focus_out");
+    }
+    $(this)[0].classList.remove("tooltip_focus_out");
+  });
+
+  $(document.body).delegate('.movie_tooltip_group', 'mouseout', function() {
+    var tooltips = $(".movie_tooltip_group");
+    for(var i=0; i<tooltips.length; i++){
+      tooltips[i].classList.remove("tooltip_focus_out");
+    }
+  });
+
+  //  hover n click event function - start
+
+
+</script>
+
+</body>
+</html>
